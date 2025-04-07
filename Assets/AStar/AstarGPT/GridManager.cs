@@ -19,10 +19,20 @@ public class Node
 
 public class GridManager : MonoBehaviour
 {
+    private static GridManager instance;
+    public static GridManager Instance => instance;
+
     public int gridSizeX, gridSizeZ;
-    public float nodeSize;
-    public LayerMask unwalkableMask;
+    public float nodeSize, checkHeight;
     private Node[,] grid;
+
+    public LayerMask obstacleMask;
+
+    private void Awake()
+    {
+        if (instance == null) instance = this;
+        else Destroy(this.gameObject);
+    }
 
     void Start() => CreateGrid();
 
@@ -34,10 +44,21 @@ public class GridManager : MonoBehaviour
             for (int z = 0; z < gridSizeZ; z++)
             {
                 Vector3 worldPoint = new Vector3(x * nodeSize, 0, z * nodeSize);
-                bool walkable = !Physics.CheckSphere(worldPoint, nodeSize / 2, unwalkableMask);
+                bool walkable = IsWalkable(worldPoint);
                 grid[x, z] = new Node(walkable, worldPoint, x, z);
             }
         }
+    }
+
+    bool IsWalkable(Vector3 worldPoint)
+    {
+        RaycastHit hit;
+
+        bool hasObstacle = Physics.Raycast(worldPoint + Vector3.up * checkHeight * 2, Vector3.down, out hit, checkHeight * 4, obstacleMask);
+
+        Debug.DrawRay(worldPoint + Vector3.up * checkHeight * 2, Vector3.down * (checkHeight * 4), hasObstacle ? Color.red : Color.green, 1f);
+
+        return !hasObstacle;
     }
 
     public Node GetNodeFromWorldPoint(Vector3 worldPosition)
@@ -50,23 +71,28 @@ public class GridManager : MonoBehaviour
     public List<Node> GetNeighbors(Node node)
     {
         List<Node> neighbors = new List<Node>();
+
         for (int dx = -1; dx <= 1; dx++)
         {
             for (int dz = -1; dz <= 1; dz++)
             {
                 if (dx == 0 && dz == 0) continue;
+
                 int checkX = node.gridX + dx;
                 int checkZ = node.gridZ + dz;
+
                 if (checkX >= 0 && checkX < gridSizeX && checkZ >= 0 && checkZ < gridSizeZ)
-                    neighbors.Add(grid[checkX, checkZ]);
+                {
+                    Node neighbor = grid[checkX, checkZ];
+
+                    if (dx != 0 && dz != 0) continue;
+
+                    if (!neighbor.walkable) continue;
+
+                    neighbors.Add(neighbor);
+                }
             }
         }
         return neighbors;
-    }
-
-    public void SetWalkable(Vector3 position, bool walkable)
-    {
-        Node node = GetNodeFromWorldPoint(position);
-        if (node != null) node.walkable = walkable;
     }
 }
